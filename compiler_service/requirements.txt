@@ -1,0 +1,11 @@
+Django>=3.2
+djangorestframework
+channels
+channels_redis
+celery
+django-redis
+redis
+django-cors-headers
+djangorestframework-simplejwt
+django-ratelimit
+python-dotenv==1.0.0
