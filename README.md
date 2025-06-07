@@ -1,73 +1,54 @@
+
+
+
           
-# Python Compiler Project Documentation
+# Python Compiler Documentation
 
 ## Table of Contents
 
-1. [Introduction](#introduction)
-2. [System Architecture](#system-architecture)
-3. [Installation](#installation)
-   - [Prerequisites](#prerequisites)
-   - [Development Setup](#development-setup)
-   - [Docker Setup](#docker-setup)
-4. [Configuration](#configuration)
-   - [Environment Variables](#environment-variables)
-5. [Features](#features)
-   - [User Authentication](#user-authentication)
-   - [Code Execution](#code-execution)
-   - [Interactive Input](#interactive-input)
-6. [API Reference](#api-reference)
-   - [Authentication API](#authentication-api)
-   - [Compiler API](#compiler-api)
-   - [WebSocket API](#websocket-api)
-7. [Frontend Guide](#frontend-guide)
-8. [Security Considerations](#security-considerations)
-9. [Troubleshooting](#troubleshooting)
-10. [Contributing](#contributing)
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Installation](#installation)
+  - [Development Setup](#development-setup)
+  - [Docker Setup](#docker-setup)
+- [Configuration](#configuration)
+  - [Auth Service Environment Variables](#auth-service-environment-variables)
+  - [Compiler Service Environment Variables](#compiler-service-environment-variables)
+- [Features](#features)
+  - [User Authentication](#user-authentication)
+  - [Code Execution](#code-execution)
+  - [Interactive Input](#interactive-input)
+- [API Reference](#api-reference)
+  - [Authentication API](#authentication-api)
+  - [Compiler API](#compiler-api)
+  - [WebSocket API](#websocket-api)
+- [Frontend Guide](#frontend-guide)
+- [Security Considerations](#security-considerations)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Introduction
+## Overview
 
-The Python Compiler is a web-based application that allows users to write, execute, and interact with Python code in a secure, isolated environment. The system provides real-time feedback, supports interactive input during code execution, and includes user authentication for personalized experiences.
+The Python Compiler is a web-based application that allows users to write, execute, and interact with Python code in real-time. It provides a secure environment for code execution with resource limits, user authentication, and interactive input capabilities.
 
-This project is designed with a microservices architecture, consisting of separate services for authentication, code compilation/execution, and the frontend interface, all orchestrated using Docker and Docker Compose.
+## Architecture
 
-## System Architecture
+The application follows a microservices architecture with the following components:
 
-![System Architecture](/architecture-diagram.png)
+1. **Auth Service**: Handles user registration, authentication, and JWT token management
+2. **Compiler Service**: Manages code execution in a secure environment
+3. **Frontend**: React-based user interface for code editing and execution
+4. **Nginx**: Reverse proxy that routes requests to appropriate services
 
-The Python Compiler consists of the following components:
+Additional infrastructure components:
+- **PostgreSQL**: Database for user information
+- **Redis**: Cache for code output streaming and WebSocket communication
+- **RabbitMQ**: Message broker for asynchronous code execution tasks
 
-1. **Auth Service**: A Django REST API service responsible for user registration, authentication, and JWT token management.
-
-2. **Compiler Service**: A Django service that handles Python code execution, with the following components:
-   - REST API for code submission
-   - Celery workers for asynchronous code execution
-   - WebSocket server for real-time communication with the frontend
-   - Redis for caching and message queuing
-
-3. **Frontend**: A React-based single-page application that provides the user interface.
-
-4. **Nginx**: A reverse proxy that routes requests to the appropriate services and serves static files.
-
-5. **PostgreSQL**: Database for the Auth Service.
-
-6. **RabbitMQ**: Message broker for Celery tasks.
-
-7. **Redis**: Cache for interactive prompts and user inputs during code execution.
+![Architecture Diagram](architecture-diagram.png)
 
 ## Installation
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Git
-
-For local development:
-- Python 3.8+
-- Node.js 14+
-- npm or yarn
-- PostgreSQL
-- Redis
-- RabbitMQ
 
 ### Development Setup
 
@@ -82,8 +63,9 @@ cd python-compiler
 
 ```bash
 cd auth_service
+python -m venv venv
+.\venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env  # Edit the .env file with your configuration
 python manage.py migrate
 python manage.py runserver 8001
 ```
@@ -92,16 +74,19 @@ python manage.py runserver 8001
 
 ```bash
 cd ../compiler_service
+python -m venv venv
+.\venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env  # Edit the .env file with your configuration
 python manage.py migrate
-python manage.py runserver 8002
 ```
 
-4. Start Celery worker for the Compiler Service:
+4. Start the Compiler Service components:
 
 ```bash
-cd ../compiler_service
+# Terminal 1: Start the web server
+python manage.py runserver 8002
+
+# Terminal 2: Start the Celery worker
 celery -A compiler_service worker --loglevel=info
 ```
 
@@ -115,83 +100,84 @@ npm run dev
 
 ### Docker Setup
 
-The easiest way to run the entire application is using Docker Compose:
+For a production-ready setup, use Docker Compose:
 
 ```bash
 docker-compose up -d
 ```
 
-This will start all the services defined in the `docker-compose.yml` file. The application will be accessible at http://localhost.
+This will start all services, including PostgreSQL, Redis, and RabbitMQ. The application will be available at http://localhost:80.
 
 ## Configuration
 
-### Environment Variables
-
-#### Auth Service
+### Auth Service Environment Variables
 
 Create a `.env` file in the `auth_service` directory with the following variables:
 
 ```
 DJANGO_SECRET_KEY=your-secret-key
-DJANGO_DEBUG=True  # Set to False in production
+DJANGO_DEBUG=False
 POSTGRES_DB=auth_db
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=yourpassword
-POSTGRES_HOST=localhost  # Use 'postgres' for Docker
+POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
-ALLOWED_HOSTS=localhost,127.0.0.1
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+ALLOWED_HOSTS=localhost,auth_service,nginx
+CORS_ALLOWED_ORIGINS=http://localhost,http://frontend,http://nginx
 ```
 
-#### Compiler Service
+### Compiler Service Environment Variables
 
 Create a `.env` file in the `compiler_service` directory with the following variables:
 
 ```
 DJANGO_SECRET_KEY=your-secret-key
-DJANGO_DEBUG=True  # Set to False in production
-ALLOWED_HOSTS=localhost,127.0.0.1
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-REDIS_HOST=localhost  # Use 'redis' for Docker
+DJANGO_DEBUG=False
+ALLOWED_HOSTS=localhost,compiler_service_web,nginx
+CORS_ALLOWED_ORIGINS=http://localhost,http://frontend,http://nginx
+REDIS_HOST=redis
 REDIS_PORT=6379
-RABBITMQ_HOST=localhost  # Use 'rabbitmq' for Docker
+RABBITMQ_HOST=rabbitmq
 RABBITMQ_PORT=5672
-CODE_EXECUTION_MAX_TIME=5  # Maximum execution time in seconds
-CODE_EXECUTION_MAX_MEMORY=100  # Maximum memory usage in MB
+CODE_EXECUTION_MAX_TIME=5
+CODE_EXECUTION_MAX_MEMORY=100
 ```
 
 ## Features
 
 ### User Authentication
 
-The Python Compiler provides a complete authentication system with the following features:
+The application provides user registration and authentication using JWT tokens. Features include:
 
-- User registration with username, email, and password
-- User login with JWT token authentication
-- Token refresh mechanism
+- User registration with email, username, and password
+- Secure login with JWT token generation
+- Token refresh for extended sessions
+- Password validation and security
 
 ### Code Execution
 
-The core feature of the Python Compiler is the ability to execute Python code:
+Users can execute Python code with the following features:
 
-- Secure execution in an isolated environment
-- Resource limits (CPU time, memory usage)
-- Code validation to prevent malicious code execution
-- Asynchronous execution using Celery
+- Syntax validation before execution
+- Asynchronous code execution using Celery
+- Resource limits (CPU time and memory)
+- Real-time output streaming via WebSockets
+- Security measures to prevent dangerous code execution
 
 ### Interactive Input
 
-The Python Compiler supports interactive input during code execution:
+The application supports interactive Python programs that require user input:
 
-- Real-time communication using WebSockets
-- Input prompts displayed to the user
-- User can provide input that is sent back to the executing code
+- Code can use the `input()` function to request user input
+- Input prompts are displayed to the user in real-time
+- Users can submit input through the UI
+- Input is processed by the running code and output is streamed back
 
 ## API Reference
 
 ### Authentication API
 
-#### Register a new user
+#### Register User
 
 ```
 POST /api/users/register/
@@ -200,9 +186,9 @@ POST /api/users/register/
 Request body:
 ```json
 {
-  "username": "user123",
-  "password": "securepassword",
-  "password2": "securepassword",
+  "username": "example_user",
+  "password": "secure_password",
+  "password2": "secure_password",
   "email": "user@example.com",
   "first_name": "John",
   "last_name": "Doe"
@@ -212,7 +198,7 @@ Request body:
 Response:
 ```json
 {
-  "username": "user123",
+  "username": "example_user",
   "email": "user@example.com",
   "first_name": "John",
   "last_name": "Doe"
@@ -228,16 +214,36 @@ POST /api/users/login/
 Request body:
 ```json
 {
-  "username": "user123",
-  "password": "securepassword"
+  "username": "example_user",
+  "password": "secure_password"
 }
 ```
 
 Response:
 ```json
 {
-  "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+  "refresh": "refresh_token",
+  "access": "access_token"
+}
+```
+
+#### Refresh Token
+
+```
+POST /api/users/token/refresh/
+```
+
+Request body:
+```json
+{
+  "refresh": "refresh_token"
+}
+```
+
+Response:
+```json
+{
+  "access": "new_access_token"
 }
 ```
 
@@ -251,13 +257,13 @@ POST /api/compiler/execute/
 
 Headers:
 ```
-Authorization: Bearer <access_token>
+Authorization: Bearer access_token
 ```
 
 Request body:
 ```json
 {
-  "code": "print('Hello, World!')"
+  "code": "name = input('Enter name: ') print('Hi,', name)"
 }
 ```
 
@@ -265,110 +271,165 @@ Response:
 ```json
 {
   "message": "Code execution started",
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "session_id": "550e8400-e29b-41d4-a716-446655440001"
+  "id": "execution_id",
+  "session_id": "session_uuid"
 }
 ```
 
 ### WebSocket API
 
+Connect to the WebSocket endpoint:
 
+```
+ws://localhost/ws/compiler/
+```
+
+Or for secure connections:
+
+```
+wss://localhost/ws/compiler/
+```
+
+#### Set Session
+
+After connecting, set the session ID:
+
+```json
+{
+  "action": "set_session",
+  "session_id": "session_uuid"
+}
+```
+
+#### Get Prompt
+
+Check for input prompts:
+
+```json
+{
+  "action": "get_prompt"
+}
+```
+
+Response (if a prompt exists):
+
+```json
+{
+  "prompt": "Enter name: "
+}
+```
+
+#### Submit User Input
+
+Send input to the running code:
+
+```json
+{
+  "action": "user_input",
+  "input": "John Doe"
+}
+```
+
+#### Receive Output
+
+Output is streamed automatically:
+
+```json
+{
+  "output": "Hi, John Doe!\n"
+}
+```
 
 ## Frontend Guide
 
-The frontend is built with React and uses the following libraries:
+The frontend is built with React and Material-UI, providing a clean and responsive interface for code execution.
 
-- React Router for navigation
-- Axios for HTTP requests
-- Material-UI for UI components
-- Native WebSocket API for real-time communication
+Key components:
 
-### Pages
+- **Login/Register**: User authentication forms
+- **CodeExecutor**: Main component for code editing and execution
+  - Code editor with syntax highlighting
+  - Execute button to run code
+  - Output display area
+  - Interactive input form when prompted
 
-1. **Login Page**: User authentication
-2. **Register Page**: New user registration
-3. **Code Executor Page**: Main interface for code execution
-
-### Code Execution Flow
-
-1. User enters Python code in the editor
-2. User clicks "Execute Code" button
-3. Frontend sends a POST request to `/api/compiler/execute/`
-4. Backend starts asynchronous code execution
-5. Frontend establishes WebSocket connection
-6. If the code requires input, the backend sends a prompt via WebSocket
-7. User enters input in the prompt field
-8. Frontend sends the input back via WebSocket
-9. Backend continues code execution with the provided input
-10. Output is displayed in real-time
+The frontend communicates with the backend through:
+- REST API calls for authentication and code execution requests
+- WebSocket connections for real-time output streaming and interactive input
 
 ## Security Considerations
 
 ### Code Execution Security
 
-- **Input Validation**: All Python code is validated before execution to prevent malicious code.
-- **Resource Limits**: CPU time and memory usage are limited to prevent resource exhaustion.
-- **Restricted Imports**: Dangerous modules like `os`, `subprocess`, and `sys` are blocked.
+The application implements several security measures for safe code execution:
+
+1. **Input Validation**: Python code is validated for syntax errors and dangerous imports
+2. **Resource Limits**: CPU time and memory usage are restricted
+3. **Sandboxing**: Code execution is isolated from the host system
+4. **Dangerous Import Prevention**: Potentially harmful modules like `os`, `subprocess`, etc. are blocked
 
 ### Authentication Security
 
-- **JWT Tokens**: Secure authentication using JWT tokens with expiration.
-- **Password Hashing**: User passwords are securely hashed using Django's authentication system.
-- **CORS Protection**: Cross-Origin Resource Sharing is restricted to allowed origins only.
+1. **JWT Tokens**: Secure authentication using JWT with limited lifetimes
+2. **Password Validation**: Enforces password strength requirements
+3. **HTTPS Support**: Configuration for secure communication
 
 ### Network Security
 
-- **HTTPS Support**: WebSocket connections support secure WebSocket protocol (WSS) when accessed via HTTPS.
-- **Nginx as Reverse Proxy**: All requests are routed through Nginx, adding an extra layer of security.
+1. **CORS Restrictions**: Configurable CORS settings to limit cross-origin requests
+2. **Nginx Proxy**: Proper request routing and header management
+3. **WebSocket Security**: Support for secure WebSocket connections (WSS)
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### WebSocket Connection Failed
+1. **WebSocket Connection Failures**
+   - Check if the WebSocket server is running
+   - Verify that Nginx is properly configured for WebSocket proxying
+   - Ensure the correct WebSocket URL is being used (ws:// or wss://)
 
-- Check if the WebSocket server is running
-- Ensure you're using the correct protocol (ws:// for HTTP, wss:// for HTTPS)
-- Verify that the session ID is valid
+2. **Code Execution Timeouts**
+   - Check if the code contains infinite loops
+   - Verify that the `CODE_EXECUTION_MAX_TIME` setting is appropriate
+   - Check Celery worker logs for errors
 
-#### Code Execution Timeout
-
-- Check if your code has infinite loops
-- Increase the `CODE_EXECUTION_MAX_TIME` value in the environment variables
-
-#### Database Connection Issues
-
-- Verify PostgreSQL credentials in the `.env` file
-- Check if the PostgreSQL server is running
+3. **Database Connection Issues**
+   - Verify PostgreSQL credentials in the `.env` file
+   - Check if the PostgreSQL service is running
+   - Ensure the database has been migrated
 
 ### Logs
 
-To view logs in Docker:
+Check the following logs for troubleshooting:
 
-```bash
-docker-compose logs -f auth_service
-docker-compose logs -f compiler_service_web
-docker-compose logs -f compiler_service_worker
-```
+- Django logs: `auth_service/logs` and `compiler_service/logs`
+- Nginx logs: `/var/log/nginx/error.log` and `/var/log/nginx/access.log`
+- Docker logs: `docker-compose logs [service_name]`
 
 ## Contributing
 
-Contributions to the Python Compiler project are welcome! Here's how you can contribute:
+Contributions to the Python Compiler project are welcome! Here's how to get started:
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Commit your changes: `git commit -m 'Add some feature'`
-4. Push to the branch: `git push origin feature-name`
-5. Submit a pull request
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Make your changes
+4. Run tests to ensure everything works
+5. Commit your changes: `git commit -m "Add some feature"`
+6. Push to the branch: `git push origin feature/your-feature-name`
+7. Create a pull request
 
 ### Development Guidelines
 
 - Follow PEP 8 style guide for Python code
 - Write unit tests for new features
-- Update documentation for significant changes
+- Update documentation when adding or changing functionality
+- Use meaningful commit messages
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-© 2025 Python Compiler Project. All rights reserved.
-
-        
+© 2025 Python Compiler Microservice Project. All rights reserved.
